@@ -61,6 +61,7 @@
 
     imageUpload.addEventListener('change', async () => {
       await faceapi.nets.tinyFaceDetector.loadFromUri('models/tiny_face_detector');
+      console.log("Models loaded from /models/tiny_face_detector");
       const file = imageUpload.files[0];
       const img = await loadImage(file);
       baseImage = img;
@@ -69,6 +70,10 @@
       ctx.drawImage(img, 0, 0);
 
       const detections = await faceapi.detectAllFaces(img, new faceapi.TinyFaceDetectorOptions());
+      if (!detections.length) {
+        alert("No faces detected — try another image.");
+        return;
+      }
       detections.forEach(det => applyFilter(det.box));
       downloadBtn.disabled = false;
     });
