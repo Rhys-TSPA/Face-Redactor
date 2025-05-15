@@ -60,8 +60,17 @@
     });
 
     imageUpload.addEventListener('change', async () => {
-      await faceapi.nets.tinyFaceDetector.loadFromUri('models');
-      console.log("Models loaded from /models");
+      try {
+        await Promise.all([
+          faceapi.nets.tinyFaceDetector.loadFromUri('models')
+        ]);
+        console.log("TinyFaceDetector model loaded from /models");
+      } catch (err) {
+        console.error("Failed to load face detection models:", err);
+        alert("Error loading face detection models. Check the console for details.");
+        return;
+      }
+
       const file = imageUpload.files[0];
       const img = await loadImage(file);
       baseImage = img;
