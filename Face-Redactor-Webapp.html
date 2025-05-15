@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Face Redactor</title>
+  <script defer src="https://cdn.jsdelivr.net/npm/face-api.js"></script>
+  <style>
+    body { font-family: sans-serif; padding: 1rem; text-align: center; }
+    canvas { margin-top: 1rem; }
+    input[type='file'] { margin-bottom: 1rem; }
+  </style>
+</head>
+<body>
+  <h1>Face Redactor</h1>
+
+  <input type="file" id="imageUpload" accept="image/*" />
+  <br />
+  <label for="filterType">Filter:</label>
+  <select id="filterType">
+    <option value="blur">Blur</option>
+    <option value="pixelate">Pixelate</option>
+    <option value="color">Color Overlay</option>
+    <option value="image">Image Overlay</option>
+  </select>
+
+  <div id="extraOptions">
+    <input type="color" id="colorPicker" value="#000000" style="display:none;" />
+    <input type="file" id="overlayImageUpload" accept="image/*" style="display:none;" />
+  </div>
+
+  <br />
+  <button id="downloadBtn" disabled>Download</button>
+  <br />
+  <canvas id="canvas"></canvas>
+
+  <script>
+    const imageUpload = document.getElementById('imageUpload');
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    const filterType = document.getElementById('filterType');
+    const colorPicker = document.getElementById('colorPicker');
+    const overlayImageUpload = document.getElementById('overlayImageUpload');
+    const downloadBtn = document.getElementById('downloadBtn');
+
+    let baseImage = null;
+    let overlayImage = null;
+
+    filterType.addEventListener('change', () => {
+      colorPicker.style.display = filterType.value === 'color' ? 'inline-block' : 'none';
+      overlayImageUpload.style.display = filterType.value === 'image' ? 'inline-block' : 'none';
+    });
+
+    overlayImageUpload.addEventListener('change', async () => {
+      const file = overlayImageUpload.files[0];
+      if (file) {
+        overlayImage = new Image();
+        overlayImage.src = URL.createObjectURL(file);
+      }
+    });
+
+    imageUpload.addEventListener('change', async () => {
+      await faceapi.nets.tinyFaceDetector.loadFromUri('https://cdn.jsdelivr.net/npm/face-api.js/models');
+      const file = imageUpload.files[0];
+      const img = await loadImage(file);
+      baseImage = img;
+      canvas.width = img.width;
+      canvas.height = img.height;
+      ctx.drawImage(img, 0, 0);
+
+      const detections = await faceapi.detectAllFaces(img, new faceapi.TinyFaceDetectorOptions());
+      detections.forEach(det => applyFilter(det.box));
+      downloadBtn.disabled = false;
+    });
+
+    function loadImage(file) {
+      return new Promise((resolve) => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.src = URL.createObjectURL(file);
+      });
+    }
+
+    function applyFilter(box) {
+      const { x, y, width, height } = box;
+      if (filterType.value === 'blur') {
+        const face = ctx.getImageData(x, y, width, height);
+        ctx.filter = 'blur(10px)';
+        ctx.drawImage(canvas, x, y, width, height, x, y, width, height);
+        ctx.filter = 'none';
+      } else if (filterType.value === 'pixelate') {
+        const scale = 0.05;
+        const face = ctx.getImageData(x, y, width, height);
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = width;
+        tempCanvas.height = height;
+        const tempCtx = tempCanvas.getContext('2d');
+        tempCtx.putImageData(face, 0, 0);
+        ctx.imageSmoothingEnabled = false;
+        ctx.drawImage(tempCanvas, 0, 0, width, height, x, y, width * scale, height * scale);
+        ctx.drawImage(canvas, x, y, width * scale, height * scale, x, y, width, height);
+        ctx.imageSmoothingEnabled = true;
+      } else if (filterType.value === 'color') {
+        ctx.save();
+        ctx.globalAlpha = 1.0;
+        ctx.fillStyle = colorPicker.value;
+        ctx.fillRect(x, y, width, height);
+        ctx.restore();
+      } else if (filterType.value === 'image' && overlayImage) {
+        ctx.drawImage(overlayImage, x, y, width, height);
+      }
+    }
+
+    downloadBtn.addEventListener('click', () => {
+      const link = document.createElement('a');
+      link.download = 'redacted.png';
+      link.href = canvas.toDataURL();
+      link.click();
+    });
+  </script>
+</body>
+</html>
